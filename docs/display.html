@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>จอเรียกคิว</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; font-family: 'Sarabun', system-ui, sans-serif; background: #0f2a4a; color: #fff; min-height: 100vh; display: flex; flex-direction: column; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: #0b2140; }
+    header h1 { margin: 0; font-size: 2rem; }
+    #clock { font-size: 1.8rem; font-weight: 600; }
+    main { flex: 1; display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px; padding: 32px 40px; }
+    .panel { background: rgba(255,255,255,.06); border-radius: 20px; padding: 28px; }
+    .panel h2 { margin: 0 0 20px; font-size: 1.6rem; color: #9cc4f5; }
+    .now { display: grid; gap: 16px; }
+    .now-item { background: #2f80ed; border-radius: 16px; padding: 22px 28px; display: flex; align-items: center; gap: 28px; }
+    .now-item.flash { animation: flash 1s ease 3; }
+    @keyframes flash { 50% { background: #ffb020; color: #1b1b1b; } }
+    .now-no { font-size: 5rem; font-weight: 800; line-height: 1; }
+    .now-name { font-size: 2rem; font-weight: 700; }
+    .now-svc { font-size: 1.2rem; opacity: .85; }
+    .wait { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .wait li { display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,.08); border-radius: 12px; padding: 12px 20px; font-size: 1.3rem; }
+    .wait .no { font-weight: 800; font-size: 1.8rem; min-width: 80px; color: #ffd27a; }
+    .wait .t { margin-left: auto; opacity: .7; }
+    .empty { opacity: .6; font-size: 1.3rem; }
+    #gate { position: fixed; inset: 0; background: #0f2a4a; display: grid; place-items: center; z-index: 9; padding: 16px; }
+    #gate form { display: flex; flex-direction: column; gap: 12px; width: min(380px, 100%); font-size: 1.1rem; }
+    #gate input, #gate button { font: inherit; padding: 12px; border-radius: 10px; border: 0; }
+    #gate button { background: #2f80ed; color: #fff; cursor: pointer; }
+    #gate .msg { color: #ffb4b4; min-height: 1.3em; }
+    @media (max-width: 800px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 16px; } .now-no { font-size: 3.5rem; } }
+  </style>
+</head>
+<body>
+  <div id="gate" hidden>
+    <form id="gate-form">
+      <h2 style="margin:0">🧒 เปิดจอเรียกคิว</h2>
+      <input id="gate-url" placeholder="URL ของ Apps Script (…/exec)" autocomplete="off">
+      <input id="gate-key" type="password" placeholder="รหัสผ่านเจ้าหน้าที่" required>
+      <button>เปิดจอ</button>
+      <div class="msg" id="gate-msg"></div>
+    </form>
+  </div>
+  <header>
+    <h1>🧒 เรียกคิวรับบริการ</h1>
+    <div id="clock"></div>
+  </header>
+  <main>
+    <section class="panel">
+      <h2>กำลังเรียก</h2>
+      <div class="now" id="now"></div>
+    </section>
+    <section class="panel">
+      <h2>คิวถัดไป</h2>
+      <ul class="wait" id="wait"></ul>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const qno = (n) => String(n).padStart(3, '0');
+    const get = (k) => { try { return sessionStorage.getItem(k) || localStorage.getItem(k) || ''; } catch { return ''; } };
+    const configured = Boolean(window.APP_CONFIG && window.APP_CONFIG.API_URL);
+    const apiUrl = () => (configured ? window.APP_CONFIG.API_URL : get('scr_api_url'));
+    let lastServing = null;
+
+    function speak(text) {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'th-TH';
+        speechSynthesis.speak(u);
+      } catch {}
+    }
+
+    function showGate(msg = '') {
+      $('gate').hidden = false;
+      $('gate-url').hidden = configured;
+      $('gate-url').value = apiUrl();
+      $('gate-msg').textContent = msg;
+    }
+
+    $('gate-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      try {
+        if (!configured) localStorage.setItem('scr_api_url', $('gate-url').value.trim());
+        localStorage.setItem('scr_key', $('gate-key').value); // จอนี้เปิดค้างไว้ จึงจำรหัสไว้ในเครื่อง
+      } catch {}
+      $('gate-msg').textContent = 'กำลังเชื่อมต่อ...';
+      load();
+    });
+
+    async function load() {
+      if (!apiUrl() || !get('scr_key')) return showGate();
+      try {
+        const res = await fetch(apiUrl(), {
+          method: 'POST',
+          body: JSON.stringify({ method: 'GET', path: '/api/display', key: get('scr_key') }),
+        });
+        const out = await res.json();
+        if (out.status === 401 || out.status === 429) return showGate(out.error);
+        if (out.status !== 200) return;
+        $('gate').hidden = true;
+        const d = out.data;
+        const newOnes = lastServing === null ? [] : d.serving.filter((s) => !lastServing.includes(s.queue_no));
+        $('now').innerHTML = d.serving.length
+          ? d.serving.map((s) => `<div class="now-item ${newOnes.includes(s) ? 'flash' : ''}">
+              <div class="now-no">${qno(s.queue_no)}</div>
+              <div><div class="now-name">น้อง${esc(s.name)}</div><div class="now-svc">${esc(s.service)}</div></div></div>`).join('')
+          : '<div class="empty">ยังไม่มีการเรียกคิว</div>';
+        $('wait').innerHTML = d.waiting.length
+          ? d.waiting.map((s) => `<li><span class="no">${qno(s.queue_no)}</span><span>น้อง${esc(s.name)}</span><span class="t">${esc(s.slot)}</span></li>`).join('')
+          : '<li class="empty">ไม่มีคิวรอ</li>';
+        newOnes.forEach((s) => speak(`ขอเชิญคิวที่ ${s.queue_no} น้อง${s.name} ค่ะ`));
+        lastServing = d.serving.map((s) => s.queue_no);
+      } catch {
+        if (!$('gate').hidden) $('gate-msg').textContent = 'เชื่อมต่อไม่ได้ ตรวจสอบ URL และอินเทอร์เน็ต';
+      }
+    }
+
+    function tick() {
+      $('clock').textContent = new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' });
+    }
+    tick(); setInterval(tick, 1000);
+    load(); setInterval(() => { if ($('gate').hidden) load(); }, 8000);
+  </script>
+</body>
+</html>

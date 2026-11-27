@@ -48,6 +48,10 @@ const SHEETS = {
     name: 'Rooms',
     cols: ['room', 'group', 'capacity'],
   },
+  parents: {
+    name: 'Parents',
+    cols: ['phone', 'name', 'pin_hash', 'salt', 'created_at', 'updated_at'],
+  },
 };
 const NUM_COLS = ['id', 'child_id', 'group', 'queue_no', 'weight', 'height', 'capacity'];
 
@@ -153,7 +157,7 @@ function table(name) {
   for (let i = 1; i < values.length; i++) {
     const o = { _row: i + 1 };
     header.forEach((h, j) => { o[h] = fromCell(h, values[i][j]); });
-    if (name === 'rooms' ? o.room : o.id) rows.push(o);
+    if (o[{ rooms: 'room', parents: 'phone' }[name] || 'id']) rows.push(o);
   }
   return { sh, header, rows };
 }
@@ -528,38 +532,64 @@ route('PUT', '/api/rooms', (p, q, body) => {
 });
 
 // =====================================================================
-// ผู้ปกครอง: สมัครเอง และเข้าดูด้วย เลขบัตรประชาชนเด็กหรือ HN + เบอร์โทรผู้ปกครอง
-// เห็นและจัดการได้เฉพาะข้อมูลของเด็กคนนั้นเท่านั้น
+// ผู้ปกครอง: ลงทะเบียนบัญชีด้วยเบอร์มือถือ + PIN 6 หลัก
+// เห็นและจัดการได้เฉพาะเด็กที่ลงทะเบียนด้วยเบอร์มือถือของตัวเอง
 // =====================================================================
-const PARENT_MAX_FAILS = 5;     // กรอกผิดเกินนี้ ล็อกตัวระบุนั้น 15 นาที
-const APPLY_LIMIT_HOURLY = 60;  // จำนวนใบสมัครออนไลน์สูงสุดต่อชั่วโมง (กันสแปม)
+const PARENT_MAX_FAILS = 5;     // ใส่ PIN ผิดเกินนี้ ล็อกเบอร์นั้น 15 นาที
+const APPLY_LIMIT_HOURLY = 60;  // จำนวนใบสมัคร/บัญชีใหม่สูงสุดต่อชั่วโมง (กันสแปม)
+const PUBLIC_PARENT_PATHS = ['/parent/config', '/parent/register'];
+
+const hex = (bytes) => bytes.map((b) => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
+function hashPin(pin, salt) {
+  let h = salt + ':' + pin;
+  for (let i = 0; i < 500; i++) h = hex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h));
+  return h;
+}
+const normPhone = (v) => digits(v);
+const validPhone = (p) => /^0\d{9}$/.test(p);
+const validPin = (p) => /^\d{6}$/.test(String(p || ''));
+
+function lockCheck(phone) {
+  const cache = CacheService.getScriptCache();
+  const fails = Number(cache.get('pfail_' + phone) || 0);
+  if (fails >= PARENT_MAX_FAILS) throw new HttpError(429, 'ใส่ข้อมูลผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่');
+  return () => { cache.put('pfail_' + phone, String(fails + 1), 900); Utilities.sleep(800); };
+}
+
+function spamCheck() {
+  const cache = CacheService.getScriptCache();
+  const n = Number(cache.get('apply_count') || 0);
+  if (n >= APPLY_LIMIT_HOURLY) throw new HttpError(429, 'มีผู้ใช้งานจำนวนมาก กรุณาลองใหม่ภายหลัง');
+  return () => cache.put('apply_count', String(n + 1), 3600);
+}
 
 function parentAuth(auth, path) {
-  if (path === '/parent/apply' || path === '/parent/config') return null; // สมัครใหม่ไม่ต้องยืนยันตัวตน
-  const ident = digits(auth.ident);
-  const phone = digits(auth.phone);
-  if (!ident || !phone) throw new HttpError(401, 'กรุณากรอกเลขบัตรประชาชน/HN และเบอร์โทรให้ครบ');
-  const cache = CacheService.getScriptCache();
-  const ck = 'pfail_' + ident;
-  const fails = Number(cache.get(ck) || 0);
-  if (fails >= PARENT_MAX_FAILS) throw new HttpError(429, 'กรอกข้อมูลผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่');
-  const child = table('children').rows.find((c) =>
-    (c.citizen_id === ident || digits(c.hn) === ident) && digits(c.parent_phone) === phone);
-  if (!child) {
-    cache.put(ck, String(fails + 1), 900);
-    Utilities.sleep(800);
-    throw new HttpError(401, 'ไม่พบข้อมูล กรุณาตรวจสอบเลขบัตรประชาชน/HN และเบอร์โทรที่ใช้ตอนสมัคร');
+  if (PUBLIC_PARENT_PATHS.includes(path)) return null;
+  const phone = normPhone(auth.phone);
+  if (!phone || !auth.pin) throw new HttpError(401, 'กรุณากรอกเบอร์มือถือและ PIN');
+  const fail = lockCheck(phone);
+  const acc = table('parents').rows.find((p) => p.phone === phone);
+  if (!acc || hashPin(String(auth.pin), acc.salt) !== acc.pin_hash) {
+    fail();
+    throw new HttpError(401, 'เบอร์มือถือหรือ PIN ไม่ถูกต้อง');
   }
-  cache.remove(ck);
-  return child;
+  CacheService.getScriptCache().remove('pfail_' + phone);
+  return acc;
+}
+
+const myChildren = (acc) => table('children').rows.filter((c) => normPhone(c.parent_phone) === acc.phone);
+function myChild(acc, id) {
+  const c = myChildren(acc).find((x) => x.id === id);
+  if (!c) throw new HttpError(404, 'ไม่พบข้อมูลเด็ก');
+  return c;
 }
 
 // ส่งเฉพาะข้อมูลที่ผู้ปกครองจำเป็นต้องเห็น
 function parentChildView(c) {
   return {
-    hn: c.hn, first_name: c.first_name, last_name: c.last_name, nickname: c.nickname, gender: c.gender,
+    id: c.id, hn: c.hn, first_name: c.first_name, last_name: c.last_name, nickname: c.nickname, gender: c.gender,
     birth_date: c.birth_date, blood_type: c.blood_type, weight: c.weight, height: c.height,
-    allergies: c.allergies, conditions: c.conditions, parent_name: c.parent_name,
+    allergies: c.allergies, conditions: c.conditions,
   };
 }
 
@@ -570,46 +600,105 @@ function parentAppView(a, apps) {
   };
 }
 
-function parentState(child) {
+function parentState(acc) {
   const apps = table('applications').rows;
   return {
-    child: parentChildView(child),
-    applications: apps.filter((a) => a.child_id === child.id)
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).map((a) => parentAppView(a, apps)),
+    parent: { phone: acc.phone, name: acc.name },
+    children: myChildren(acc).map((c) => Object.assign(parentChildView(c), {
+      applications: apps.filter((a) => a.child_id === c.id)
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).map((a) => parentAppView(a, apps)),
+    })),
     config: { groups: GROUPS, today: todayStr(), start_ahead_days: START_AHEAD_DAYS },
   };
 }
 
 parentRoute('GET', '/parent/config', () => ({ groups: GROUPS, today: todayStr(), start_ahead_days: START_AHEAD_DAYS }));
 
-parentRoute('POST', '/parent/apply', (none, p, q, body) => {
-  const cache = CacheService.getScriptCache();
-  const n = Number(cache.get('apply_count') || 0);
-  if (n >= APPLY_LIMIT_HOURLY) throw new HttpError(429, 'มีผู้สมัครจำนวนมาก กรุณาลองใหม่ภายหลัง');
+// ลงทะเบียนบัญชีผู้ปกครอง
+parentRoute('POST', '/parent/register', (none, p, q, body) => {
+  const phone = normPhone(body.phone);
+  const name = clean(body.name);
+  if (!name) throw new HttpError(400, 'กรุณากรอกชื่อ-นามสกุลผู้ปกครอง');
+  if (!validPhone(phone)) throw new HttpError(400, 'เบอร์มือถือไม่ถูกต้อง (10 หลัก เช่น 0812345678)');
+  if (!validPin(body.pin)) throw new HttpError(400, 'PIN ต้องเป็นตัวเลข 6 หลัก');
+  if (/^(\d)\1{5}$/.test(body.pin) || '0123456789'.indexOf(body.pin) !== -1 || '9876543210'.indexOf(body.pin) !== -1) {
+    throw new HttpError(400, 'PIN เดาง่ายเกินไป (เช่น 111111, 123456) กรุณาตั้งใหม่');
+  }
+  if (body.consent !== true) throw new HttpError(400, 'กรุณากดยินยอมให้เก็บข้อมูลก่อนลงทะเบียน');
+  const t = table('parents');
+  if (t.rows.some((x) => x.phone === phone)) throw new HttpError(409, 'เบอร์นี้ลงทะเบียนไว้แล้ว กรุณาเข้าสู่ระบบ (ถ้าลืม PIN ติดต่อเจ้าหน้าที่)');
+  // เบอร์นี้มีเด็กอยู่ในระบบแล้ว: ต้องยืนยันด้วยเลขบัตรประชาชน/HN ของเด็ก กันคนอื่นมาอ้างเบอร์
+  const existing = table('children').rows.filter((c) => normPhone(c.parent_phone) === phone);
+  if (existing.length) {
+    const fail = lockCheck(phone);
+    const v = digits(body.verify);
+    if (!v) throw new HttpError(428, 'เบอร์นี้มีข้อมูลลูกในระบบแล้ว กรุณากรอกเลขบัตรประชาชน (หรือ HN) ของลูกเพื่อยืนยัน');
+    if (!existing.some((c) => c.citizen_id === v || digits(c.hn) === v)) {
+      fail();
+      throw new HttpError(428, 'เลขบัตรประชาชน/HN ไม่ตรงกับข้อมูลลูกของเบอร์นี้');
+    }
+  }
+  const done = spamCheck();
+  const salt = Utilities.getUuid();
+  const now = nowStamp();
+  const acc = { phone, name, pin_hash: hashPin(String(body.pin), salt), salt, created_at: now, updated_at: now };
+  writeRow(t, acc);
+  done();
+  return parentState(acc);
+});
+
+parentRoute('GET', '/parent/me', (acc) => parentState(acc));
+
+// เพิ่มลูกและสมัครเข้าคิว
+parentRoute('POST', '/parent/children', (acc, p, q, body) => {
+  const done = spamCheck();
   if (body.consent !== true) throw new HttpError(400, 'กรุณากดยินยอมให้เก็บข้อมูลก่อนสมัคร');
-  const c = readChild(body, true);
-  const existing = table('children').rows.find((x) => x.citizen_id === c.citizen_id);
-  if (existing) throw new HttpError(409, 'น้องเคยสมัครไว้แล้ว กรุณากด "เช็กคิว" แล้วเข้าด้วยเลขบัตรประชาชนและเบอร์โทร');
+  const c = readChild(Object.assign({}, body, { parent_phone: acc.phone, parent_name: clean(body.parent_name) || acc.name }), true);
+  if (table('children').rows.some((x) => x.citizen_id === c.citizen_id)) {
+    throw new HttpError(409, 'เลขบัตรประชาชนนี้มีในระบบแล้ว ถ้าเคยสมัครด้วยเบอร์อื่น กรุณาติดต่อเจ้าหน้าที่');
+  }
   checkStart(c.birth_date, clean(body.start_date)); // ตรวจก่อนบันทึก จะได้ไม่มีข้อมูลเด็กค้างถ้าวันหรืออายุไม่ตรง
   const child = insertChild(c);
-  const app = createApplication(child, body, 'parent');
-  cache.put('apply_count', String(n + 1), 3600);
-  return Object.assign(parentState(child), { new_application_id: app.id });
+  createApplication(child, body, 'parent');
+  done();
+  return parentState(acc);
 });
-
-parentRoute('GET', '/parent/me', (child) => parentState(child));
 
 // สมัครคิวใหม่อีกครั้ง (เช่น เคยยกเลิกไปแล้ว)
-parentRoute('POST', '/parent/applications', (child, p, q, body) => {
-  createApplication(child, body, 'parent');
-  return parentState(child);
+parentRoute('POST', '/parent/children/:id/applications', (acc, p, q, body) => {
+  createApplication(myChild(acc, p.id), body, 'parent');
+  return parentState(acc);
 });
 
-parentRoute('POST', '/parent/applications/:id/cancel', (child, p) => {
+parentRoute('POST', '/parent/applications/:id/cancel', (acc, p) => {
   const t = table('applications');
-  const a = t.rows.find((x) => x.id === p.id && x.child_id === child.id);
+  const mine = myChildren(acc).map((c) => c.id);
+  const a = t.rows.find((x) => x.id === p.id && mine.includes(x.child_id));
   if (!a) throw new HttpError(404, 'ไม่พบคิว');
   if (a.status !== 'waiting') throw new HttpError(400, 'ยกเลิกได้เฉพาะคิวที่ยังรออยู่ ถ้าน้องเรียนอยู่แล้วกรุณาติดต่อเจ้าหน้าที่');
   writeRow(t, Object.assign({}, a, { status: 'cancelled', updated_at: nowStamp() }), a._row);
-  return parentState(child);
+  return parentState(acc);
+});
+
+// เปลี่ยน PIN
+parentRoute('POST', '/parent/pin', (acc, p, q, body) => {
+  if (!validPin(body.new_pin)) throw new HttpError(400, 'PIN ใหม่ต้องเป็นตัวเลข 6 หลัก');
+  const t = table('parents');
+  const row = t.rows.find((x) => x.phone === acc.phone);
+  const salt = Utilities.getUuid();
+  writeRow(t, Object.assign({}, row, { pin_hash: hashPin(String(body.new_pin), salt), salt, updated_at: nowStamp() }), row._row);
+  return { ok: true };
+});
+
+// เจ้าหน้าที่: รีเซ็ตบัญชีผู้ปกครอง (กรณีลืม PIN) ผู้ปกครองลงทะเบียนใหม่ด้วยเบอร์เดิมได้ โดยยืนยันด้วยเลขบัตรลูก
+route('GET', '/api/parent-account', (p, query) => {
+  const acc = table('parents').rows.find((x) => x.phone === normPhone(query.phone));
+  return acc ? { phone: acc.phone, name: acc.name, created_at: acc.created_at } : null;
+});
+route('POST', '/api/parent-account/reset', (p, q, body) => {
+  const t = table('parents');
+  const acc = t.rows.find((x) => x.phone === normPhone(body.phone));
+  if (!acc) throw new HttpError(404, 'เบอร์นี้ยังไม่มีบัญชีผู้ปกครอง');
+  t.sh.deleteRow(acc._row);
+  return { ok: true };
 });

@@ -330,6 +330,7 @@ async function openDetail(id) {
       <button class="btn primary" data-queue="${c.id}">+ เพิ่มเข้าคิว</button>
       <button class="btn" data-edit="${c.id}">แก้ไขข้อมูล</button>
       <button class="btn" onclick="window.print()">พิมพ์</button>
+      <button class="btn" data-reset-pin="${esc(c.parent_phone)}">รีเซ็ต PIN ผู้ปกครอง</button>
       <button class="btn danger" data-del-child="${c.id}">ลบ</button>
     </div>
     <h3>ประวัติคิว / การเข้าเรียน (${c.applications.length})</h3>
@@ -342,6 +343,18 @@ async function openDetail(id) {
     </table></div>`;
   if (!$('#detail-dialog').open) $('#detail-dialog').showModal();
 }
+
+// รีเซ็ตบัญชีผู้ปกครอง (ลืม PIN): ผู้ปกครองลงทะเบียนใหม่ด้วยเบอร์เดิม โดยยืนยันด้วยเลขบัตรลูก
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-reset-pin]');
+  if (!b) return;
+  const phone = b.dataset.resetPin;
+  const acc = await api(`/api/parent-account?phone=${encodeURIComponent(phone)}`);
+  if (!acc) return toast(`เบอร์ ${phone} ยังไม่ได้ลงทะเบียนบัญชีผู้ปกครอง`, 'error');
+  if (!(await confirmBox(`รีเซ็ตบัญชีของ ${acc.name} (${acc.phone})? ผู้ปกครองต้องลงทะเบียนใหม่ด้วยเบอร์เดิม และกรอกเลขบัตรประชาชนลูกเพื่อยืนยัน`))) return;
+  await api('/api/parent-account/reset', { method: 'POST', body: { phone } });
+  toast('รีเซ็ตแล้ว แจ้งผู้ปกครองให้ลงทะเบียนใหม่ได้เลย', 'ok');
+});
 
 // ---------- เข้าสู่ระบบ ----------
 function showLogin(msg = '') {

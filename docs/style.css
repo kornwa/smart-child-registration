@@ -290,3 +290,12 @@ body.parent { background: #f0f5fc; }
 .q-card.serving { border-left-color: var(--green); }
 .q-card.serving .q-no { color: var(--green); }
 .q-card .q-live.go { background: var(--green); animation: none; }
+
+/* บัญชีผู้ปกครอง: การ์ดลูกแต่ละคน */
+.p-head .btns .btn { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.35); }
+.kid-head b { font-size: 1.2rem; }
+.q-card.none { border-left-color: var(--line); }
+.reapply { display: grid; gap: 10px; margin-top: 12px; }
+.kid-hist { margin-top: 12px; }
+.kid-hist summary { cursor: pointer; color: var(--muted); font-size: .92rem; }
+.p-head .btns { flex-wrap: nowrap; flex-shrink: 0; }

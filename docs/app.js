@@ -1,4 +1,4 @@
-// ---------- ตัวช่วยทั่วไป ----------
+// ---------- หน้าเจ้าหน้าที่: จองคิวเนอสเซอรี่ ----------
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -6,9 +6,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // ---------- เชื่อมต่อ Google Apps Script ----------
 const store = {
   get: (k) => { try { return sessionStorage.getItem(k) || localStorage.getItem(k) || ''; } catch { return ''; } },
-  set: (k, v, remember) => {
-    try { (remember ? localStorage : sessionStorage).setItem(k, v); } catch {}
-  },
+  set: (k, v, remember) => { try { (remember ? localStorage : sessionStorage).setItem(k, v); } catch {} },
   clear: (k) => { try { sessionStorage.removeItem(k); localStorage.removeItem(k); } catch {} },
 };
 const apiUrl = () => (window.APP_CONFIG && window.APP_CONFIG.API_URL) || store.get('scr_api_url');
@@ -17,11 +15,8 @@ let pending = 0;
 async function api(path, opts = {}) {
   const u = new URL(path, 'http://local');
   const payload = {
-    method: opts.method || 'GET',
-    path: u.pathname,
-    query: Object.fromEntries(u.searchParams),
-    body: opts.body,
-    key: store.get('scr_key'),
+    method: opts.method || 'GET', path: u.pathname, query: Object.fromEntries(u.searchParams),
+    body: opts.body, key: store.get('scr_key'),
   };
   document.body.classList.toggle('loading', ++pending > 0);
   try {
@@ -44,126 +39,50 @@ function toast(msg, type = '') {
   const t = $('#toast');
   t.textContent = msg; t.className = `toast ${type}`; t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 3200);
+  toastTimer = setTimeout(() => (t.hidden = true), 3500);
 }
-
-const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-function thDate(s) {
-  if (!s) return '-';
-  const [y, m, d] = s.split('-').map(Number);
-  return `${d} ${TH_MONTHS[m - 1]} ${y + 543}`;
-}
-
-function ageText(birth) {
-  if (!birth) return '-';
-  const b = new Date(birth), n = new Date();
-  let y = n.getFullYear() - b.getFullYear();
-  let m = n.getMonth() - b.getMonth();
-  if (n.getDate() < b.getDate()) m--;
-  if (m < 0) { y--; m += 12; }
-  if (y <= 0 && m <= 0) {
-    const days = Math.floor((n - b) / 86400000);
-    return `${days} วัน`;
-  }
-  return y > 0 ? `${y} ปี ${m} เดือน` : `${m} เดือน`;
-}
-
-const STATUS_TH = { waiting: 'รอเรียก', serving: 'กำลังรับบริการ', done: 'เสร็จแล้ว', cancelled: 'ยกเลิก' };
-const badge = (s) => `<span class="badge ${s}">${STATUS_TH[s]}</span>`;
-const qno = (n) => String(n).padStart(3, '0');
-const fullName = (c) => `${c.first_name} ${c.last_name}${c.nickname ? ` (${c.nickname})` : ''}`;
-
-let CONFIG = { slots: [], services: [], capacity: 3, today: '' };
-
-// ข้อผิดพลาดที่ไม่ได้ดักไว้ ให้แสดงเป็นข้อความแจ้งเตือน
 window.addEventListener('unhandledrejection', (e) => {
   e.preventDefault();
   if ($('#login').hidden) toast((e.reason && e.reason.message) || 'เกิดข้อผิดพลาด', 'error');
 });
 
-// ---------- การสลับหน้า ----------
+// ---------- ตัวช่วยแสดงผล ----------
+const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const thDate = (s) => { if (!s) return '-'; const [y, m, d] = s.slice(0, 10).split('-').map(Number); return `${d} ${TH_MONTHS[m - 1]} ${y + 543}`; };
+function ageText(birth, at = CONFIG.today) {
+  if (!birth) return '-';
+  const [by, bm, bd] = birth.split('-').map(Number);
+  const [ay, am, ad] = at.split('-').map(Number);
+  let months = (ay - by) * 12 + (am - bm);
+  if (ad < bd) months--;
+  if (months < 1) return `${Math.floor((Date.parse(at) - Date.parse(birth)) / 6048e5)} สัปดาห์`;
+  const y = Math.floor(months / 12), m = months % 12;
+  return y ? `${y} ปี${m ? ` ${m} ด.` : ''}` : `${m} เดือน`;
+}
+const STATUS_TH = { waiting: 'รอคิว', enrolled: 'เข้าเรียนแล้ว', cancelled: 'ยกเลิก', left: 'ออกแล้ว' };
+const STATUS_BADGE = { waiting: 'waiting', enrolled: 'done', cancelled: 'cancelled', left: 'cancelled' };
+const badge = (s) => `<span class="badge ${STATUS_BADGE[s]}">${STATUS_TH[s]}</span>`;
+const fullName = (c) => `${c.first_name} ${c.last_name}${c.nickname ? ` (${c.nickname})` : ''}`;
+const gName = (id) => (CONFIG.groups.find((g) => g.id === id) || {}).name || `กลุ่ม ${id}`;
+
+let CONFIG = { groups: [], today: '' };
+
+// ---------- สลับหน้า ----------
 function show(view) {
-  $$('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+  $$('#tabs button[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${view}`));
   location.hash = view;
-  ({ dashboard: loadDashboard, children: loadChildren, booking: loadSlots, history: loadHistory })[view]?.();
+  ({ queue: loadQueue, rooms: loadRooms, children: loadChildren, settings: loadSettings })[view]?.();
 }
 $('#tabs').addEventListener('click', (e) => { if (e.target.dataset.view) show(e.target.dataset.view); });
-document.addEventListener('click', (e) => {
-  const g = e.target.closest('[data-goto]');
-  if (g) show(g.dataset.goto);
-  if (e.target.closest('[data-close]')) e.target.closest('dialog').close();
-});
-
-// ---------- คิววันนี้ ----------
-async function loadStats() {
-  const s = await api('/api/stats');
-  $('#stats').innerHTML = [
-    ['คิววันนี้', s.today], ['รอเรียก', s.waiting], ['เสร็จแล้ววันนี้', s.done],
-    ['คิวล่วงหน้า', s.upcoming], ['เด็กในระบบ', s.children],
-  ].map(([l, v]) => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
-}
-
-function bookingActions(b) {
-  const btn = (status, label, cls = '') => `<button class="btn sm ${cls}" data-status="${status}" data-id="${b.id}">${label}</button>`;
-  const out = [];
-  if (b.status === 'waiting') out.push(btn('serving', '📢 เรียกคิว', 'primary'));
-  if (b.status === 'serving') out.push(btn('done', '✓ เสร็จสิ้น', 'green'), btn('waiting', 'ย้อนกลับ'));
-  if (b.status === 'waiting') out.push(btn('cancelled', 'ยกเลิก', 'danger'));
-  if (b.status === 'done' || b.status === 'cancelled') out.push(btn('waiting', 'คืนสถานะรอ'));
-  return `<div class="btns">${out.join('')}</div>`;
-}
-
-function bookingRows(list, { showDate = false } = {}) {
-  if (!list.length) return `<tr><td class="empty" colspan="8">ยังไม่มีคิว</td></tr>`;
-  return list.map((b) => `
-    <tr>
-      <td class="qno">${qno(b.queue_no)}</td>
-      ${showDate ? `<td>${thDate(b.date)}</td>` : ''}
-      <td>${esc(b.slot)}</td>
-      <td>
-        <a class="name-link" data-child="${b.child_id}">${esc(fullName(b))}</a>
-        <div class="sub">HN ${esc(b.hn)} · อายุ ${ageText(b.birth_date)}</div>
-        ${b.allergies ? `<div class="allergy">⚠ แพ้: ${esc(b.allergies)}</div>` : ''}
-      </td>
-      <td>${esc(b.service)}${b.note ? `<div class="sub">${esc(b.note)}</div>` : ''}</td>
-      <td>${esc(b.parent_name)}<div class="sub">${esc(b.parent_phone)}</div></td>
-      <td>${badge(b.status)}</td>
-      <td>${bookingActions(b)}</td>
-    </tr>`).join('');
-}
-
-const BOOKING_HEAD = (showDate) => `<thead><tr><th>คิว</th>${showDate ? '<th>วันที่</th>' : ''}<th>เวลา</th><th>ชื่อเด็ก</th><th>บริการ</th><th>ผู้ปกครอง</th><th>สถานะ</th><th></th></tr></thead>`;
-
-async function loadDashboard() {
-  $('#today-label').textContent = thDate(CONFIG.today);
-  const status = $('#dash-filter').value;
-  const [list] = await Promise.all([
-    api(`/api/bookings?date=${CONFIG.today}${status ? `&status=${status}` : ''}`),
-    loadStats(),
-  ]);
-  $('#dash-table').innerHTML = BOOKING_HEAD(false) + `<tbody>${bookingRows(list)}</tbody>`;
-}
-$('#dash-filter').addEventListener('change', loadDashboard);
-
-document.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-status]');
-  if (!b) return;
-  if (b.dataset.status === 'cancelled' && !(await confirmBox('ยืนยันการยกเลิกคิวนี้?'))) return;
-  try {
-    await api(`/api/bookings/${b.dataset.id}`, { method: 'PATCH', body: { status: b.dataset.status } });
-    toast(`เปลี่ยนสถานะเป็น "${STATUS_TH[b.dataset.status]}" แล้ว`, 'ok');
-    refreshCurrent();
-  } catch (err) { toast(err.message, 'error'); }
-});
+document.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) e.target.closest('dialog').close(); });
 
 function refreshCurrent() {
   const v = $('.view.active').id.replace('view-', '');
-  ({ dashboard: loadDashboard, history: loadHistory })[v]?.();
+  ({ queue: loadQueue, rooms: loadRooms, children: loadChildren })[v]?.();
   if ($('#detail-dialog').open) openDetail(currentDetailId);
 }
 
-// กล่องยืนยันแบบไม่ใช้ window.confirm
 function confirmBox(msg) {
   return new Promise((resolve) => {
     const d = document.createElement('dialog');
@@ -177,202 +96,252 @@ function confirmBox(msg) {
   });
 }
 
+// ---------- คิวรอเข้าเรียน ----------
+let qGroup = 0;
+async function loadStats() {
+  const s = await api('/api/stats');
+  $('#stats').innerHTML = s.groups.map((g) => `
+    <div class="stat">
+      <div class="l"><b>${esc(g.name)}</b> · ${esc(g.label)}</div>
+      <div class="v">${g.waiting} <small>รอคิว</small></div>
+      <div class="l">เรียนอยู่ ${g.enrolled}/${g.capacity} ที่นั่ง · ว่าง ${Math.max(g.capacity - g.enrolled, 0)}</div>
+    </div>`).join('') + `<div class="stat"><div class="l">เด็กในระบบ</div><div class="v">${s.children}</div></div>`;
+}
+
+function renderGroupSeg() {
+  $('#q-group').innerHTML = [{ id: 0, name: 'ทุกกลุ่ม' }].concat(CONFIG.groups)
+    .map((g) => `<button data-g="${g.id}" class="${qGroup === g.id ? 'active' : ''}">${esc(g.name)}</button>`).join('');
+}
+$('#q-group').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-g]');
+  if (!b) return;
+  qGroup = Number(b.dataset.g); renderGroupSeg(); loadQueue();
+});
+$('#q-status').addEventListener('change', () => loadQueue());
+
+function appActions(a) {
+  const btn = (attr, label, cls = '') => `<button class="btn sm ${cls}" ${attr}>${label}</button>`;
+  const out = [];
+  if (a.status === 'waiting') out.push(btn(`data-enroll="${a.id}"`, '✓ รับเข้าเรียน', 'green'), btn(`data-status="cancelled" data-id="${a.id}"`, 'ยกเลิก', 'danger'));
+  if (a.status === 'enrolled') out.push(btn(`data-enroll="${a.id}"`, 'ย้ายห้อง'), btn(`data-status="left" data-id="${a.id}"`, 'ออก/จบ', 'danger'));
+  if (a.status === 'cancelled' || a.status === 'left') out.push(btn(`data-status="waiting" data-id="${a.id}"`, 'คืนเข้าคิว'));
+  return `<div class="btns">${out.join('')}</div>`;
+}
+
+let lastApps = [];
+async function loadQueue() {
+  const status = $('#q-status').value;
+  const [apps] = await Promise.all([
+    api(`/api/applications?status=${status}${qGroup ? `&group=${qGroup}` : ''}`),
+    loadStats(),
+  ]);
+  lastApps = apps;
+  $('#q-table').innerHTML = `<thead><tr>
+      <th>${status === 'waiting' ? 'ลำดับ' : ''}</th><th>เลขคิว</th><th>ชื่อเด็ก</th><th>กลุ่ม</th><th>เริ่มเรียน</th>
+      <th>ผู้ปกครอง</th><th>สมัครเมื่อ</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>${apps.length ? apps.map((a) => `
+      <tr>
+        <td class="qno">${a.position ?? ''}</td>
+        <td><b>${esc(a.queue_label)}</b></td>
+        <td><a class="name-link" data-child="${a.child_id}">${esc(fullName(a))}</a>
+          <div class="sub">HN ${esc(a.hn)} · อายุวันนี้ ${ageText(a.birth_date)}</div>
+          ${a.allergies ? `<div class="allergy">⚠ แพ้: ${esc(a.allergies)}</div>` : ''}
+          ${a.note ? `<div class="sub">📝 ${esc(a.note)}</div>` : ''}</td>
+        <td>${esc(gName(a.group))}${a.room ? `<div class="sub">ห้อง ${esc(a.room)}</div>` : ''}</td>
+        <td>${thDate(a.start_date)}<div class="sub">อายุตอนนั้น ${ageText(a.birth_date, a.start_date)}</div></td>
+        <td>${esc(a.parent_name)}<div class="sub">${esc(a.parent_phone)}</div></td>
+        <td>${thDate(a.created_at)}<div class="sub">${a.source === 'parent' ? 'สมัครออนไลน์' : 'เจ้าหน้าที่'}</div></td>
+        <td>${badge(a.status)}</td>
+        <td>${appActions(a)}</td>
+      </tr>`).join('') : '<tr><td class="empty" colspan="9">ไม่มีรายการ</td></tr>'}</tbody>`;
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-status][data-id]');
+  if (!b) return;
+  const s = b.dataset.status;
+  const msg = { cancelled: 'ยกเลิกคิวนี้?', left: 'บันทึกว่าเด็กออก/จบจากห้องนี้แล้ว? ที่นั่งจะว่างทันที', waiting: 'คืนเข้าคิวรอ (ได้ลำดับเดิมตามเลขคิว)?' }[s];
+  if (!(await confirmBox(msg))) return;
+  await api(`/api/applications/${b.dataset.id}/status`, { method: 'POST', body: { status: s } });
+  toast('บันทึกแล้ว', 'ok');
+  refreshCurrent();
+});
+
+// เลือกห้องเพื่อรับเข้าเรียน / ย้ายห้อง
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-enroll]');
+  if (!b) return;
+  const id = Number(b.dataset.enroll);
+  const [rooms, app] = [await api('/api/rooms'), lastAppById(id)];
+  $('#room-title').textContent = app ? `${app.status === 'enrolled' ? 'ย้ายห้อง' : 'รับเข้าเรียน'}: ${fullName(app)}` : 'เลือกห้อง';
+  const appGroup = app ? app.group : 0;
+  const sorted = rooms.slice().sort((x, y) => (x.group === appGroup ? -1 : 0) - (y.group === appGroup ? -1 : 0) || x.room.localeCompare(y.room));
+  $('#room-pick').innerHTML = sorted.map((r) => {
+    const full = r.used >= r.capacity && !(app && app.room === r.room);
+    const current = app && app.room === r.room;
+    return `<button class="room-btn ${r.group === appGroup ? 'same' : ''}" data-room="${esc(r.room)}" data-app="${id}" ${full || current ? 'disabled' : ''}>
+      <b>ห้อง ${esc(r.room)}</b><span>${esc(gName(r.group))}</span>
+      <span>${current ? 'ห้องปัจจุบัน' : full ? 'เต็ม' : `ว่าง ${r.capacity - r.used} จาก ${r.capacity}`}</span></button>`;
+  }).join('');
+  $('#room-dialog').showModal();
+});
+function lastAppById(id) {
+  return lastApps.find((a) => a.id === id) || lastRooms.flatMap((r) => r.children).find((a) => a.id === id) || detailApps.find((a) => a.id === id);
+}
+$('#room-pick').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-room]');
+  if (!b || b.disabled) return;
+  await api(`/api/applications/${b.dataset.app}/enroll`, { method: 'POST', body: { room: b.dataset.room } });
+  $('#room-dialog').close();
+  toast(`บันทึกเข้าห้อง ${b.dataset.room} แล้ว`, 'ok');
+  refreshCurrent();
+});
+
+// ---------- ห้องเรียน ----------
+let lastRooms = [];
+async function loadRooms() {
+  lastRooms = await api('/api/rooms');
+  $('#rooms').innerHTML = CONFIG.groups.map((g) => `
+    <h2 class="group-title">${esc(g.name)} <span class="muted">${esc(g.label)}</span></h2>
+    <div class="room-grid">${lastRooms.filter((r) => r.group === g.id).map((r) => `
+      <div class="card room-card">
+        <div class="card-head"><h2>ห้อง ${esc(r.room)}</h2>
+          <span class="badge ${r.used >= r.capacity ? 'cancelled' : 'done'}">${r.used}/${r.capacity} ที่นั่ง</span></div>
+        <div class="meter"><span style="width:${r.capacity ? Math.min(100, (r.used / r.capacity) * 100) : 100}%"></span></div>
+        ${r.children.length ? r.children.map((a) => `
+          <div class="h-row">
+            <div><a class="name-link" data-child="${a.child_id}">${esc(fullName(a))}</a>
+              <div class="sub">อายุ ${ageText(a.birth_date)} · ${esc(a.parent_phone)}</div>
+              ${a.allergies ? `<div class="allergy">⚠ ${esc(a.allergies)}</div>` : ''}</div>
+            <div class="btns"><button class="btn sm" data-enroll="${a.id}">ย้าย</button>
+              <button class="btn sm danger" data-status="left" data-id="${a.id}">ออก</button></div>
+          </div>`).join('') : '<p class="sub">ยังไม่มีเด็กในห้องนี้</p>'}
+      </div>`).join('')}</div>`).join('');
+}
+
+// ---------- ตั้งค่าห้อง ----------
+async function loadSettings() {
+  const rooms = await api('/api/rooms');
+  $('#rooms-settings').innerHTML = `<thead><tr><th>ห้อง</th><th>กลุ่ม</th><th>เรียนอยู่</th><th>จำนวนที่นั่ง</th></tr></thead>
+    <tbody>${rooms.map((r) => `<tr><td><b>${esc(r.room)}</b></td><td>${esc(gName(r.group))}</td><td>${r.used}</td>
+      <td><input type="number" min="${r.used}" max="200" step="1" data-cap="${esc(r.room)}" value="${r.capacity}" style="max-width:110px"></td></tr>`).join('')}</tbody>`;
+}
+$('#rooms-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const rooms = $$('[data-cap]').map((i) => ({ room: i.dataset.cap, capacity: Number(i.value) }));
+  await api('/api/rooms', { method: 'PUT', body: { rooms } });
+  toast('บันทึกจำนวนที่นั่งแล้ว', 'ok');
+  loadSettings();
+});
+
 // ---------- ข้อมูลเด็ก ----------
 let searchTimer;
 async function loadChildren() {
   const q = $('#child-search').value.trim();
   const list = await api(`/api/children${q ? `?q=${encodeURIComponent(q)}` : ''}`);
   $('#child-table').innerHTML = `
-    <thead><tr><th>HN</th><th>ชื่อ-สกุล</th><th>เพศ</th><th>อายุ</th><th>ผู้ปกครอง</th><th>ข้อมูลสุขภาพ</th><th></th></tr></thead>
+    <thead><tr><th>HN</th><th>ชื่อ-สกุล</th><th>อายุ</th><th>ผู้ปกครอง</th><th>สุขภาพ</th><th></th></tr></thead>
     <tbody>${list.length ? list.map((c) => `
       <tr>
         <td>${esc(c.hn)}</td>
         <td><a class="name-link" data-child="${c.id}">${esc(fullName(c))}</a><div class="sub">เกิด ${thDate(c.birth_date)}</div></td>
-        <td>${esc(c.gender || '-')}</td>
         <td>${ageText(c.birth_date)}</td>
         <td>${esc(c.parent_name)}<div class="sub">${esc(c.parent_phone)}</div></td>
-        <td>${c.allergies ? `<span class="allergy">⚠ แพ้ ${esc(c.allergies)}</span>` : '<span class="sub">ไม่มีประวัติแพ้</span>'}</td>
+        <td>${c.allergies ? `<span class="allergy">⚠ แพ้ ${esc(c.allergies)}</span>` : '<span class="sub">-</span>'}</td>
         <td><div class="btns">
-          <button class="btn sm primary" data-book="${c.id}">จองคิว</button>
+          <button class="btn sm primary" data-queue="${c.id}">เพิ่มเข้าคิว</button>
           <button class="btn sm" data-edit="${c.id}">แก้ไข</button>
         </div></td>
-      </tr>`).join('') : `<tr><td class="empty" colspan="7">${q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีข้อมูลเด็ก กด "ลงทะเบียนเด็กใหม่" เพื่อเริ่มต้น'}</td></tr>`}</tbody>`;
+      </tr>`).join('') : `<tr><td class="empty" colspan="6">${q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีข้อมูลเด็ก'}</td></tr>`}</tbody>`;
 }
-$('#child-search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadChildren, 250); });
+$('#child-search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadChildren, 300); });
 
 const childDialog = $('#child-dialog');
 const childForm = $('#child-form');
 let editingId = null;
-let afterSave = null;
-
-function openChildForm(child = null, onSaved = null) {
+function openChildForm(child = null) {
   editingId = child?.id || null;
-  afterSave = onSaved;
   childForm.reset();
-  $('#child-dialog-title').textContent = child ? `แก้ไขข้อมูล ${child.first_name} ${child.last_name}` : 'ลงทะเบียนเด็กใหม่';
+  $('#child-dialog-title').textContent = child ? `แก้ไขข้อมูล ${child.first_name} ${child.last_name}` : 'เพิ่มเด็ก';
   if (child) for (const el of childForm.elements) if (el.name && child[el.name] != null) el.value = child[el.name];
   childForm.birth_date.max = CONFIG.today;
   childDialog.showModal();
 }
 $('#btn-new-child').addEventListener('click', () => openChildForm());
-
 childForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = Object.fromEntries(new FormData(childForm));
   try {
     const saved = await api(editingId ? `/api/children/${editingId}` : '/api/children', { method: editingId ? 'PUT' : 'POST', body });
     childDialog.close();
-    toast(editingId ? 'บันทึกการแก้ไขแล้ว' : `ลงทะเบียนสำเร็จ (HN ${saved.hn})`, 'ok');
-    if (afterSave) afterSave(saved);
+    toast(editingId ? 'บันทึกการแก้ไขแล้ว' : `เพิ่มเด็กแล้ว (HN ${saved.hn})`, 'ok');
     loadChildren();
     if ($('#detail-dialog').open) openDetail(saved.id);
   } catch (err) { toast(err.message, 'error'); }
 });
 
+// เพิ่มเข้าคิว (โดยเจ้าหน้าที่)
+let queueChildId = null;
 document.addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-child],[data-edit],[data-book],[data-del-child]');
+  const t = e.target.closest('[data-child],[data-edit],[data-queue],[data-del-child]');
   if (!t) return;
   if (t.dataset.child) return openDetail(Number(t.dataset.child));
   if (t.dataset.edit) return openChildForm(await api(`/api/children/${t.dataset.edit}`));
-  if (t.dataset.book) {
-    $('#detail-dialog').close();
-    const c = await api(`/api/children/${t.dataset.book}`);
-    show('booking'); pickChild(c);
+  if (t.dataset.queue) {
+    queueChildId = Number(t.dataset.queue);
+    $('#queue-form').reset();
+    $('#qd-start').min = CONFIG.today;
+    $('#qd-start').value = CONFIG.today;
+    $('#queue-dialog').showModal();
   }
   if (t.dataset.delChild) {
     if (!(await confirmBox('ลบข้อมูลเด็กคนนี้และประวัติคิวทั้งหมด? การลบไม่สามารถย้อนกลับได้'))) return;
-    try {
-      await api(`/api/children/${t.dataset.delChild}`, { method: 'DELETE' });
-      $('#detail-dialog').close(); toast('ลบข้อมูลแล้ว', 'ok'); loadChildren(); refreshCurrent();
-    } catch (err) { toast(err.message, 'error'); }
+    await api(`/api/children/${t.dataset.delChild}`, { method: 'DELETE' });
+    $('#detail-dialog').close(); toast('ลบข้อมูลแล้ว', 'ok'); refreshCurrent();
   }
 });
+$('#queue-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const a = await api('/api/applications', { method: 'POST', body: { child_id: queueChildId, start_date: $('#qd-start').value, note: $('#qd-note').value } });
+    $('#queue-dialog').close();
+    toast(`เพิ่มเข้าคิวแล้ว: ${gName(a.group)} เลขคิว ${a.group}-${String(a.queue_no).padStart(3, '0')}`, 'ok');
+    refreshCurrent();
+  } catch (err) { toast(err.message, 'error'); }
+});
 
-let currentDetailId = null;
+let currentDetailId = null, detailApps = [];
 async function openDetail(id) {
   currentDetailId = id;
   const c = await api(`/api/children/${id}`);
-  const bmi = c.weight && c.height ? (c.weight / (c.height / 100) ** 2).toFixed(1) : null;
+  detailApps = c.applications.map((a) => Object.assign({}, a, c, { id: a.id, child_id: c.id, note: a.note }));
   const info = (k, v, cls = '') => `<div class="${cls}"><span class="k">${k}</span>${esc(v || '-')}</div>`;
   $('#detail-title').textContent = fullName(c);
   $('#detail-body').innerHTML = `
     ${c.allergies ? `<div class="alert">⚠ ประวัติแพ้: ${esc(c.allergies)}</div>` : ''}
     <div class="info-grid">
       ${info('HN', c.hn)}${info('เพศ', c.gender)}${info('วันเกิด / อายุ', `${thDate(c.birth_date)} (${ageText(c.birth_date)})`)}
-      ${info('เลขบัตรประชาชน', c.citizen_id)}${info('กรุ๊ปเลือด', c.blood_type)}
-      ${info('น้ำหนัก / ส่วนสูง', `${c.weight ?? '-'} กก. / ${c.height ?? '-'} ซม.${bmi ? ` (BMI ${bmi})` : ''}`)}
+      ${info('เลขบัตรประชาชน', c.citizen_id)}${info('กรุ๊ปเลือด', c.blood_type)}${info('น้ำหนัก / ส่วนสูง', `${c.weight ?? '-'} กก. / ${c.height ?? '-'} ซม.`)}
       ${info('โรคประจำตัว', c.conditions, 'full')}
-      ${info('ผู้ปกครอง', `${c.parent_name}${c.parent_relation ? ` (${c.parent_relation})` : ''}`)}${info('เบอร์โทร', c.parent_phone)}${info('ลงทะเบียนเมื่อ', c.created_at)}
+      ${info('ผู้ปกครอง', `${c.parent_name}${c.parent_relation ? ` (${c.parent_relation})` : ''}`)}${info('เบอร์โทร', c.parent_phone)}${info('ลงทะเบียนเมื่อ', thDate(c.created_at))}
       ${info('ที่อยู่', c.address, 'full')}${info('หมายเหตุ', c.note, 'full')}
     </div>
     <div class="btns">
-      <button class="btn primary" data-book="${c.id}">+ จองคิวให้เด็กคนนี้</button>
+      <button class="btn primary" data-queue="${c.id}">+ เพิ่มเข้าคิว</button>
       <button class="btn" data-edit="${c.id}">แก้ไขข้อมูล</button>
       <button class="btn" onclick="window.print()">พิมพ์</button>
       <button class="btn danger" data-del-child="${c.id}">ลบ</button>
     </div>
-    <h3>ประวัติการรับบริการ (${c.bookings.length})</h3>
+    <h3>ประวัติคิว / การเข้าเรียน (${c.applications.length})</h3>
     <div class="table-wrap"><table class="table">
-      <thead><tr><th>วันที่</th><th>เวลา</th><th>คิว</th><th>บริการ</th><th>หมายเหตุ</th><th>สถานะ</th></tr></thead>
-      <tbody>${c.bookings.length ? c.bookings.map((b) => `<tr><td>${thDate(b.date)}</td><td>${esc(b.slot)}</td><td>${qno(b.queue_no)}</td>
-        <td>${esc(b.service)}</td><td>${esc(b.note || '-')}</td><td>${badge(b.status)}</td></tr>`).join('')
+      <thead><tr><th>เลขคิว</th><th>กลุ่ม/ห้อง</th><th>เริ่มเรียน</th><th>สมัครเมื่อ</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody>${c.applications.length ? c.applications.map((a) => `<tr><td><b>${esc(a.queue_label)}</b>${a.position ? `<div class="sub">ลำดับ ${a.position}</div>` : ''}</td>
+        <td>${esc(gName(a.group))}${a.room ? ` · ห้อง ${esc(a.room)}` : ''}</td><td>${thDate(a.start_date)}</td><td>${thDate(a.created_at)}</td>
+        <td>${badge(a.status)}</td><td>${appActions(a)}</td></tr>`).join('')
         : '<tr><td class="empty" colspan="6">ยังไม่มีประวัติ</td></tr>'}</tbody>
     </table></div>`;
   if (!$('#detail-dialog').open) $('#detail-dialog').showModal();
 }
-
-// ---------- จองคิว ----------
-const bk = { child: null, slot: null };
-
-async function loadSlots() {
-  const date = $('#bk-date').value;
-  if (!date) return;
-  const slots = await api(`/api/slots?date=${date}`);
-  const now = new Date();
-  const nowHM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  if (bk.slot && !slots.find((s) => s.slot === bk.slot && s.used < s.capacity)) bk.slot = null;
-  $('#bk-slots').innerHTML = slots.map((s) => {
-    const full = s.used >= s.capacity;
-    const past = date === CONFIG.today && s.slot < nowHM;
-    if (past && bk.slot === s.slot) bk.slot = null;
-    const left = s.capacity - s.used;
-    return `<button type="button" class="slot ${bk.slot === s.slot ? 'selected' : ''}" data-slot="${s.slot}" ${full || past ? 'disabled' : ''}>
-      <b>${s.slot}</b><span>${past ? 'เลยเวลาแล้ว' : full ? 'เต็ม' : `ว่าง ${left}/${s.capacity}`}</span></button>`;
-  }).join('');
-}
-$('#bk-slots').addEventListener('click', (e) => {
-  const s = e.target.closest('[data-slot]');
-  if (!s || s.disabled) return;
-  bk.slot = s.dataset.slot;
-  $$('.slot').forEach((x) => x.classList.toggle('selected', x === s));
-});
-$('#bk-date').addEventListener('change', loadSlots);
-
-function pickChild(c) {
-  bk.child = c;
-  $('#bk-child-list').hidden = true;
-  $('#bk-child-search').value = '';
-  $('#bk-child-search').hidden = true;
-  const p = $('#bk-picked');
-  p.hidden = false;
-  p.innerHTML = `<div><b>${esc(fullName(c))}</b><div class="sub">HN ${esc(c.hn)} · อายุ ${ageText(c.birth_date)} · ผู้ปกครอง ${esc(c.parent_name)} ${esc(c.parent_phone)}</div>
-    ${c.allergies ? `<div class="allergy">⚠ แพ้: ${esc(c.allergies)}</div>` : ''}</div>
-    <button type="button" class="btn sm" id="bk-change">เปลี่ยน</button>`;
-}
-function unpickChild() {
-  bk.child = null;
-  $('#bk-picked').hidden = true;
-  $('#bk-child-search').hidden = false;
-  $('#bk-child-search').focus();
-}
-$('#bk-picked').addEventListener('click', (e) => { if (e.target.id === 'bk-change') unpickChild(); });
-
-let pickTimer, pickResults = [];
-$('#bk-child-search').addEventListener('input', (e) => {
-  clearTimeout(pickTimer);
-  const q = e.target.value.trim();
-  if (!q) { $('#bk-child-list').hidden = true; return; }
-  pickTimer = setTimeout(async () => {
-    pickResults = await api(`/api/children?q=${encodeURIComponent(q)}`);
-    const list = $('#bk-child-list');
-    list.innerHTML = pickResults.length
-      ? pickResults.slice(0, 20).map((c, i) => `<div class="picker-item" data-i="${i}"><b>${esc(fullName(c))}</b>
-          <div class="sub">HN ${esc(c.hn)} · อายุ ${ageText(c.birth_date)} · ${esc(c.parent_name)} ${esc(c.parent_phone)}</div></div>`).join('')
-      : '<div class="picker-item sub">ไม่พบข้อมูล</div>';
-    list.hidden = false;
-  }, 200);
-});
-$('#bk-child-list').addEventListener('click', (e) => {
-  const it = e.target.closest('[data-i]');
-  if (it) pickChild(pickResults[it.dataset.i]);
-});
-document.addEventListener('click', (e) => { if (!e.target.closest('.picker')) $('#bk-child-list').hidden = true; });
-$('#bk-new-child').addEventListener('click', (e) => { e.preventDefault(); openChildForm(null, pickChild); });
-
-$('#booking-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (!bk.child) return toast('กรุณาเลือกเด็กที่ต้องการจองคิว', 'error');
-  if (!bk.slot) return toast('กรุณาเลือกช่วงเวลา', 'error');
-  const f = e.target;
-  try {
-    const b = await api('/api/bookings', {
-      method: 'POST',
-      body: { child_id: bk.child.id, date: f.date.value, slot: bk.slot, service: f.service.value, note: f.note.value },
-    });
-    toast(`จองคิวสำเร็จ! คิวที่ ${qno(b.queue_no)} วันที่ ${thDate(b.date)} เวลา ${b.slot}`, 'ok');
-    f.note.value = ''; bk.slot = null; unpickChild();
-    loadSlots();
-  } catch (err) { toast(err.message, 'error'); loadSlots(); }
-});
-
-// ---------- รายการคิวทั้งหมด ----------
-async function loadHistory() {
-  const date = $('#hist-date').value;
-  const list = await api(`/api/bookings${date ? `?date=${date}` : ''}`);
-  $('#hist-table').innerHTML = BOOKING_HEAD(true) + `<tbody>${bookingRows(list, { showDate: true })}</tbody>`;
-}
-$('#hist-date').addEventListener('change', loadHistory);
-$('#hist-all').addEventListener('click', () => { $('#hist-date').value = ''; loadHistory(); });
 
 // ---------- เข้าสู่ระบบ ----------
 function showLogin(msg = '') {
@@ -384,7 +353,6 @@ function showLogin(msg = '') {
   $('#login-key').value = '';
   $('#login-key').focus();
 }
-
 $('#login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const url = $('#login-url').value.trim();
@@ -395,13 +363,11 @@ $('#login-form').addEventListener('submit', async (e) => {
     }
     store.set('scr_api_url', url, true);
   }
-  const remember = $('#login-remember').checked;
   store.clear('scr_key');
-  store.set('scr_key', $('#login-key').value, remember);
+  store.set('scr_key', $('#login-key').value, $('#login-remember').checked);
   $('#login-msg').textContent = 'กำลังตรวจสอบ...';
   try { await start(); } catch (err) { if (!$('#login').hidden) $('#login-msg').textContent = err.message; }
 });
-
 $('#btn-logout').addEventListener('click', () => { store.clear('scr_key'); showLogin('ออกจากระบบแล้ว'); });
 
 // ---------- เริ่มต้น ----------
@@ -410,19 +376,14 @@ async function start() {
   CONFIG = await api('/api/config');
   $('#login').hidden = true;
   $('#app').hidden = false;
-  $('#bk-service').innerHTML = CONFIG.services.map((s) => `<option>${esc(s)}</option>`).join('');
-  $('#bk-date').value = CONFIG.today;
-  $('#bk-date').min = CONFIG.today;
-  $('#hist-date').value = CONFIG.today;
+  renderGroupSeg();
   const v = location.hash.slice(1);
-  show(['dashboard', 'children', 'booking', 'history'].includes(v) ? v : 'dashboard');
+  show(['queue', 'rooms', 'children', 'settings'].includes(v) ? v : 'queue');
   if (!started) {
     started = true;
     setInterval(() => {
-      if (!$('#app').hidden && $('#view-dashboard').classList.contains('active') && !document.querySelector('dialog[open]')) {
-        loadDashboard().catch(() => {});
-      }
-    }, 20000);
+      if (!$('#app').hidden && $('#view-queue').classList.contains('active') && !document.querySelector('dialog[open]')) loadQueue().catch(() => {});
+    }, 60000);
   }
 }
 

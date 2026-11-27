@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ผู้ปกครอง · ระบบจองคิวเด็ก</title>
+  <title>ผู้ปกครอง · จองคิวเนอสเซอรี่</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -11,26 +11,88 @@
 <body class="parent">
   <div class="loading-bar"></div>
 
-  <!-- เข้าใช้งาน -->
-  <section id="login" class="login" hidden>
-    <form id="login-form" class="login-card">
+  <!-- หน้าเริ่ม -->
+  <section id="screen-start" class="screen p-main" hidden>
+    <div class="p-hero">
       <div class="logo">👨‍👩‍👧</div>
-      <h1>สำหรับผู้ปกครอง</h1>
-      <p class="muted">จองคิว · เช็กคิว · ดูประวัติของลูก</p>
-      <label>เลขบัตรประชาชนของลูก หรือเลข HN
-        <input id="login-ident" inputmode="numeric" autocomplete="off" placeholder="เช่น 1234567890123 หรือ 69-00001" required>
+      <h1>จองคิวเข้าเรียนเนอสเซอรี่</h1>
+      <p class="muted">สำหรับผู้ปกครอง</p>
+    </div>
+    <button class="big-choice" data-screen="apply">
+      <span>📝</span><b>สมัครเข้าคิวใหม่</b><small>ยังไม่เคยสมัคร กรอกข้อมูลแล้วได้เลขคิวทันที</small>
+    </button>
+    <button class="big-choice" data-screen="login">
+      <span>🔍</span><b>เช็กคิว</b><small>เคยสมัครแล้ว ดูลำดับคิว ห้องเรียน และข้อมูลของลูก</small>
+    </button>
+    <div class="card">
+      <h2>กลุ่มตามอายุ</h2>
+      <div id="group-table"></div>
+      <p class="hint">ระบบนับอายุ ณ วันที่ต้องการให้เริ่มเรียน และจัดกลุ่มให้อัตโนมัติ</p>
+    </div>
+    <a class="hint center" href="index.html">← กลับหน้าแรก</a>
+  </section>
+
+  <!-- สมัคร -->
+  <section id="screen-apply" class="screen p-main" hidden>
+    <button class="btn sm back" data-screen="start">← ย้อนกลับ</button>
+    <form id="apply-form" class="card form">
+      <h2>ข้อมูลของลูก</h2>
+      <label><span>ชื่อ <span class="req">*</span></span><input name="first_name" required></label>
+      <label><span>นามสกุล <span class="req">*</span></span><input name="last_name" required></label>
+      <label>ชื่อเล่น<input name="nickname"></label>
+      <label>เพศ
+        <select name="gender"><option value="">-</option><option>ชาย</option><option>หญิง</option></select>
       </label>
-      <label>เบอร์โทรผู้ปกครองที่ลงทะเบียนไว้
-        <input id="login-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxx" required>
+      <label><span>วันเกิด <span class="req">*</span></span><input type="date" name="birth_date" id="ap-birth" required></label>
+      <label><span>เลขบัตรประชาชนของลูก <span class="req">*</span></span>
+        <input name="citizen_id" inputmode="numeric" maxlength="17" placeholder="13 หลัก" required>
       </label>
-      <button class="btn primary lg" type="submit">เข้าดูข้อมูลลูก</button>
-      <div id="login-msg" class="login-msg"></div>
-      <p class="hint center">ยังไม่เคยลงทะเบียน? กรุณาติดต่อเจ้าหน้าที่ที่คลินิกเพื่อลงทะเบียนครั้งแรก</p>
-      <a class="hint center" href="index.html">← กลับหน้าแรก</a>
+      <label class="full">ประวัติแพ้ยา / แพ้อาหาร<input name="allergies" placeholder="ถ้าไม่มีให้เว้นว่าง"></label>
+      <label class="full">โรคประจำตัว<input name="conditions" placeholder="ถ้าไม่มีให้เว้นว่าง"></label>
+
+      <h2>ข้อมูลผู้ปกครอง</h2>
+      <label><span>ชื่อ-นามสกุล <span class="req">*</span></span><input name="parent_name" required></label>
+      <label>เกี่ยวข้องเป็น
+        <select name="parent_relation"><option value="">-</option><option>บิดา</option><option>มารดา</option><option>ปู่/ย่า/ตา/ยาย</option><option>ญาติ</option><option>ผู้ดูแล</option></select>
+      </label>
+      <label class="full"><span>เบอร์โทร <span class="req">*</span></span>
+        <input name="parent_phone" type="tel" inputmode="tel" placeholder="08xxxxxxxx" required>
+        <span class="hint">ใช้เบอร์นี้คู่กับเลขบัตรประชาชนลูกเพื่อเช็กคิวภายหลัง</span>
+      </label>
+      <label class="full">ที่อยู่<textarea name="address" rows="2"></textarea></label>
+
+      <h2>การเข้าเรียน</h2>
+      <label class="full"><span>วันที่ต้องการให้เริ่มเรียน <span class="req">*</span></span>
+        <input type="date" name="start_date" id="ap-start" required>
+      </label>
+      <div class="full group-preview" id="ap-group">กรอกวันเกิดและวันเริ่มเรียน ระบบจะบอกว่าน้องอยู่กลุ่มไหน</div>
+      <label class="full">หมายเหตุถึงเจ้าหน้าที่<textarea name="note" rows="2" placeholder="เช่น ต้องการเริ่มหลังลาคลอดครบ"></textarea></label>
+      <label class="full check-row">
+        <input type="checkbox" id="ap-consent" required>
+        <span>ยินยอมให้เก็บข้อมูลข้างต้นเพื่อใช้ในการพิจารณารับเด็กเข้าเรียนและติดต่อผู้ปกครองเท่านั้น</span>
+      </label>
+      <button type="submit" class="btn primary lg full">สมัครและรับเลขคิว</button>
     </form>
   </section>
 
-  <div id="app" hidden>
+  <!-- เข้าดูคิว -->
+  <section id="screen-login" class="screen p-main" hidden>
+    <button class="btn sm back" data-screen="start">← ย้อนกลับ</button>
+    <form id="login-form" class="card form">
+      <h2>เช็กคิว</h2>
+      <label class="full">เลขบัตรประชาชนของลูก หรือเลข HN
+        <input id="login-ident" inputmode="numeric" autocomplete="off" placeholder="เช่น 1234567890123 หรือ 69-00001" required>
+      </label>
+      <label class="full">เบอร์โทรที่ใช้ตอนสมัคร
+        <input id="login-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxx" required>
+      </label>
+      <button class="btn primary lg full" type="submit">เข้าดูคิว</button>
+      <div id="login-msg" class="login-msg full"></div>
+    </form>
+  </section>
+
+  <!-- สถานะ -->
+  <section id="screen-status" class="screen" hidden>
     <header class="p-head">
       <div>
         <div class="p-name" id="p-name"></div>
@@ -38,50 +100,16 @@
       </div>
       <button class="btn sm" id="btn-logout">ออก</button>
     </header>
-
-    <nav class="p-tabs" id="tabs">
-      <button data-view="queue" class="active">🎫 คิวของฉัน</button>
-      <button data-view="book">📅 จองคิว</button>
-      <button data-view="history">📋 ประวัติ</button>
-    </nav>
-
     <main class="p-main">
-      <!-- คิวของฉัน -->
-      <section id="view-queue" class="view active">
-        <div id="queue-list"></div>
-        <button class="btn full-w" id="btn-refresh">🔄 อัปเดตสถานะคิว</button>
-      </section>
-
-      <!-- จองคิว -->
-      <section id="view-book" class="view">
-        <form id="book-form" class="card form">
-          <label class="full">วันที่ต้องการ
-            <input type="date" id="bk-date" required>
-          </label>
-          <label class="full">บริการ
-            <select id="bk-service" required></select>
-          </label>
-          <div class="full">
-            <div class="label">เลือกเวลา</div>
-            <div class="slots" id="bk-slots"></div>
-          </div>
-          <label class="full">อาการ / หมายเหตุ (ถ้ามี)
-            <textarea id="bk-note" rows="2" placeholder="เช่น มีไข้ 2 วัน, มาฉีดวัคซีนตามนัด"></textarea>
-          </label>
-          <button type="submit" class="btn primary lg full">ยืนยันการจองคิว</button>
-        </form>
-      </section>
-
-      <!-- ประวัติ -->
-      <section id="view-history" class="view">
-        <div class="card" id="child-info"></div>
-        <div class="card">
-          <h2>ประวัติการรับบริการ</h2>
-          <div id="history-list"></div>
-        </div>
-      </section>
+      <div id="status-card"></div>
+      <button class="btn full-w" id="btn-refresh">🔄 อัปเดตสถานะ</button>
+      <div class="card" id="child-info"></div>
+      <div class="card">
+        <h2>ประวัติการสมัคร</h2>
+        <div id="history-list"></div>
+      </div>
     </main>
-  </div>
+  </section>
 
   <div id="toast" class="toast" hidden></div>
   <script src="config.js"></script>

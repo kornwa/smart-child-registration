@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>เจ้าหน้าที่ · ระบบจองคิวเด็ก</title>
+  <title>เจ้าหน้าที่ · จองคิวเนอสเซอรี่</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -12,9 +12,9 @@
   <div class="loading-bar"></div>
   <section id="login" class="login" hidden>
     <form id="login-form" class="login-card">
-      <div class="logo">🧒</div>
-      <h1>Smart Child Registration</h1>
-      <p class="muted">ระบบจองคิวและเก็บข้อมูลเด็ก · สำหรับเจ้าหน้าที่</p>
+      <div class="logo">🩺</div>
+      <h1>สำหรับเจ้าหน้าที่</h1>
+      <p class="muted">ระบบจองคิวเข้าเรียนเนอสเซอรี่</p>
       <label id="login-url-row">URL ของ Apps Script
         <input id="login-url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
       </label>
@@ -24,144 +24,110 @@
       <label class="check"><input type="checkbox" id="login-remember"> จำรหัสผ่านในเครื่องนี้ (ใช้เฉพาะเครื่องของหน่วยงาน)</label>
       <button class="btn primary lg" type="submit">เข้าสู่ระบบ</button>
       <div id="login-msg" class="login-msg"></div>
+      <a class="hint center" href="index.html">← กลับหน้าแรก</a>
     </form>
   </section>
+
   <div id="app" hidden>
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo">🧒</span>
-      <div>
-        <div class="brand-title">Smart Child Registration</div>
-        <div class="brand-sub">ระบบจองคิวและเก็บข้อมูลเด็ก</div>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">🧒</span>
+        <div>
+          <div class="brand-title">จองคิวเนอสเซอรี่</div>
+          <div class="brand-sub">สำหรับเจ้าหน้าที่</div>
+        </div>
       </div>
-    </div>
-    <nav class="tabs" id="tabs">
-      <button data-view="dashboard" class="active">คิววันนี้</button>
-      <button data-view="children">ข้อมูลเด็ก</button>
-      <button data-view="booking">จองคิว</button>
-      <button data-view="history">รายการคิวทั้งหมด</button>
-      <a href="display.html" target="_blank" class="tab-link">จอเรียกคิว ↗</a>
-      <button id="btn-logout" class="tab-logout">ออกจากระบบ</button>
-    </nav>
-  </header>
+      <nav class="tabs" id="tabs">
+        <button data-view="queue" class="active">คิวรอเข้าเรียน</button>
+        <button data-view="rooms">ห้องเรียน</button>
+        <button data-view="children">ข้อมูลเด็ก</button>
+        <button data-view="settings">ตั้งค่าห้อง</button>
+        <button id="btn-logout" class="tab-logout">ออกจากระบบ</button>
+      </nav>
+    </header>
 
-  <main>
-    <!-- คิววันนี้ -->
-    <section id="view-dashboard" class="view active">
-      <div class="stats" id="stats"></div>
-      <div class="card">
-        <div class="card-head">
-          <h2>คิววันนี้ <span class="muted" id="today-label"></span></h2>
-          <div class="row gap">
-            <select id="dash-filter">
-              <option value="">ทุกสถานะ</option>
-              <option value="waiting">รอเรียก</option>
-              <option value="serving">กำลังรับบริการ</option>
-              <option value="done">เสร็จแล้ว</option>
+    <main>
+      <!-- คิวรอเข้าเรียน -->
+      <section id="view-queue" class="view active">
+        <div class="stats" id="stats"></div>
+        <div class="card">
+          <div class="card-head">
+            <div class="seg" id="q-group"></div>
+            <select id="q-status">
+              <option value="waiting">รอคิว</option>
+              <option value="enrolled">เข้าเรียนแล้ว</option>
               <option value="cancelled">ยกเลิก</option>
+              <option value="left">ออกแล้ว</option>
+              <option value="">ทุกสถานะ</option>
             </select>
-            <button class="btn primary" data-goto="booking">+ จองคิว</button>
           </div>
+          <div class="table-wrap"><table class="table" id="q-table"></table></div>
         </div>
-        <div class="table-wrap"><table class="table" id="dash-table"></table></div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ข้อมูลเด็ก -->
-    <section id="view-children" class="view">
-      <div class="card">
-        <div class="card-head">
-          <h2>ทะเบียนข้อมูลเด็ก</h2>
-          <div class="row gap">
-            <input type="search" id="child-search" placeholder="ค้นหา ชื่อ / HN / เลขบัตร / เบอร์โทร">
-            <button class="btn primary" id="btn-new-child">+ ลงทะเบียนเด็กใหม่</button>
-          </div>
-        </div>
-        <div class="table-wrap"><table class="table" id="child-table"></table></div>
-      </div>
-    </section>
+      <!-- ห้องเรียน -->
+      <section id="view-rooms" class="view">
+        <div class="rooms" id="rooms"></div>
+      </section>
 
-    <!-- จองคิว -->
-    <section id="view-booking" class="view">
-      <div class="card narrow">
-        <h2>จองคิวรับบริการ</h2>
-        <form id="booking-form" class="form">
-          <div class="full label">เด็กที่รับบริการ <span class="req">*</span>
-            <div class="picker">
-              <input type="search" id="bk-child-search" placeholder="พิมพ์ชื่อ, HN หรือเบอร์ผู้ปกครองเพื่อค้นหา" autocomplete="off">
-              <div class="picker-list" id="bk-child-list" hidden></div>
+      <!-- ข้อมูลเด็ก -->
+      <section id="view-children" class="view">
+        <div class="card">
+          <div class="card-head">
+            <h2>ทะเบียนข้อมูลเด็ก</h2>
+            <div class="row gap">
+              <input type="search" id="child-search" placeholder="ค้นหา ชื่อ / HN / เลขบัตร / เบอร์โทร">
+              <button class="btn primary" id="btn-new-child">+ เพิ่มเด็ก</button>
             </div>
-            <div class="picked" id="bk-picked" hidden></div>
-            <span class="hint">ยังไม่มีในระบบ? <a href="#" id="bk-new-child">ลงทะเบียนเด็กใหม่</a></span>
           </div>
-          <label>วันที่ <span class="req">*</span>
-            <input type="date" name="date" id="bk-date" required>
-          </label>
-          <label>บริการ <span class="req">*</span>
-            <select name="service" id="bk-service" required></select>
-          </label>
-          <div class="full">
-            <div class="label">ช่วงเวลา <span class="req">*</span></div>
-            <div class="slots" id="bk-slots"></div>
-          </div>
-          <label class="full">หมายเหตุ / อาการเบื้องต้น
-            <textarea name="note" rows="2" placeholder="เช่น มีไข้ 2 วัน, นัดฉีดวัคซีน MMR เข็ม 1"></textarea>
-          </label>
-          <div class="full actions">
-            <button type="submit" class="btn primary lg">ยืนยันการจองคิว</button>
-          </div>
-        </form>
-      </div>
-    </section>
-
-    <!-- รายการคิวทั้งหมด -->
-    <section id="view-history" class="view">
-      <div class="card">
-        <div class="card-head">
-          <h2>รายการคิว</h2>
-          <div class="row gap">
-            <input type="date" id="hist-date">
-            <button class="btn" id="hist-all">แสดงทุกวัน</button>
-          </div>
+          <div class="table-wrap"><table class="table" id="child-table"></table></div>
         </div>
-        <div class="table-wrap"><table class="table" id="hist-table"></table></div>
-      </div>
-    </section>
-  </main>
+      </section>
+
+      <!-- ตั้งค่าห้อง -->
+      <section id="view-settings" class="view">
+        <form class="card narrow" id="rooms-form">
+          <h2>จำนวนที่นั่งของแต่ละห้อง</h2>
+          <p class="sub">ตั้งน้อยกว่าจำนวนเด็กที่เรียนอยู่ไม่ได้</p>
+          <div class="table-wrap"><table class="table" id="rooms-settings"></table></div>
+          <div class="actions" style="margin-top:14px"><button class="btn primary" type="submit">บันทึก</button></div>
+        </form>
+      </section>
+    </main>
   </div>
 
   <!-- ฟอร์มข้อมูลเด็ก -->
   <dialog id="child-dialog">
     <form id="child-form" class="form" method="dialog">
       <div class="dialog-head">
-        <h2 id="child-dialog-title">ลงทะเบียนเด็กใหม่</h2>
+        <h2 id="child-dialog-title">เพิ่มเด็ก</h2>
         <button type="button" class="icon-btn" data-close>✕</button>
       </div>
       <fieldset>
         <legend>ข้อมูลเด็ก</legend>
-        <label>ชื่อ <span class="req">*</span><input name="first_name" required></label>
-        <label>นามสกุล <span class="req">*</span><input name="last_name" required></label>
+        <label><span>ชื่อ <span class="req">*</span></span><input name="first_name" required></label>
+        <label><span>นามสกุล <span class="req">*</span></span><input name="last_name" required></label>
         <label>ชื่อเล่น<input name="nickname"></label>
         <label>เพศ
           <select name="gender"><option value="">-</option><option>ชาย</option><option>หญิง</option></select>
         </label>
-        <label>วันเกิด <span class="req">*</span><input type="date" name="birth_date" required></label>
+        <label><span>วันเกิด <span class="req">*</span></span><input type="date" name="birth_date" required></label>
         <label>เลขบัตรประชาชน<input name="citizen_id" inputmode="numeric" maxlength="17" placeholder="13 หลัก"></label>
         <label>กรุ๊ปเลือด
           <select name="blood_type"><option value="">ไม่ทราบ</option><option>A</option><option>B</option><option>AB</option><option>O</option></select>
         </label>
         <label>น้ำหนัก (กก.)<input type="number" step="0.1" min="0" name="weight"></label>
         <label>ส่วนสูง (ซม.)<input type="number" step="0.1" min="0" name="height"></label>
-        <label class="full">ประวัติแพ้ยา / แพ้อาหาร<input name="allergies" placeholder="ถ้าไม่มีให้เว้นว่าง"></label>
+        <label class="full">ประวัติแพ้ยา / แพ้อาหาร<input name="allergies"></label>
         <label class="full">โรคประจำตัว<input name="conditions"></label>
       </fieldset>
       <fieldset>
         <legend>ผู้ปกครอง</legend>
-        <label>ชื่อ-สกุลผู้ปกครอง <span class="req">*</span><input name="parent_name" required></label>
+        <label><span>ชื่อ-สกุลผู้ปกครอง <span class="req">*</span></span><input name="parent_name" required></label>
         <label>ความสัมพันธ์
           <select name="parent_relation"><option value="">-</option><option>บิดา</option><option>มารดา</option><option>ปู่/ย่า/ตา/ยาย</option><option>ญาติ</option><option>ผู้ดูแล</option></select>
         </label>
-        <label>เบอร์โทร <span class="req">*</span><input name="parent_phone" inputmode="tel" required placeholder="08xxxxxxxx"></label>
+        <label><span>เบอร์โทร <span class="req">*</span></span><input name="parent_phone" inputmode="tel" required placeholder="08xxxxxxxx"></label>
         <label class="full">ที่อยู่<textarea name="address" rows="2"></textarea></label>
         <label class="full">หมายเหตุ<textarea name="note" rows="2"></textarea></label>
       </fieldset>
@@ -179,6 +145,28 @@
       <button type="button" class="icon-btn" data-close>✕</button>
     </div>
     <div id="detail-body"></div>
+  </dialog>
+
+  <!-- เลือกห้อง -->
+  <dialog id="room-dialog">
+    <div class="dialog-head">
+      <h2 id="room-title">เลือกห้อง</h2>
+      <button type="button" class="icon-btn" data-close>✕</button>
+    </div>
+    <div class="room-pick" id="room-pick"></div>
+  </dialog>
+
+  <!-- เพิ่มเข้าคิว -->
+  <dialog id="queue-dialog">
+    <form id="queue-form" class="form">
+      <div class="dialog-head">
+        <h2 id="queue-title">เพิ่มเข้าคิว</h2>
+        <button type="button" class="icon-btn" data-close>✕</button>
+      </div>
+      <label class="full">วันที่ต้องการให้เริ่มเรียน<input type="date" id="qd-start" required></label>
+      <label class="full">หมายเหตุ<input id="qd-note"></label>
+      <div class="actions"><button type="button" class="btn" data-close>ยกเลิก</button><button class="btn primary" type="submit">เพิ่มเข้าคิว</button></div>
+    </form>
   </dialog>
 
   <div id="toast" class="toast" hidden></div>

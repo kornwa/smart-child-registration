@@ -53,6 +53,29 @@ function setup() {
   Logger.log('ติดตั้งเรียบร้อย พร้อมทำให้ใช้งานได้เป็นเว็บแอป');
 }
 
+// ---------- เมนูในชีต: ตั้งรหัสผ่านได้โดยไม่ต้องเข้า Apps Script ----------
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🧒 ระบบจองคิว')
+    .addItem('ตั้ง / เปลี่ยนรหัสผ่านเจ้าหน้าที่', 'setPasswordFromMenu')
+    .addToUi();
+}
+
+function setPasswordFromMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.prompt('ตั้งรหัสผ่านเจ้าหน้าที่',
+    'รหัสนี้ใช้เข้าเว็บจองคิว ควรยาว 12 ตัวขึ้นไป และไม่ซ้ำกับรหัสอีเมล', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  const key = res.getResponseText().trim();
+  if (key.length < 8) {
+    ui.alert('รหัสสั้นเกินไป กรุณาตั้งอย่างน้อย 8 ตัว (แนะนำ 12 ตัวขึ้นไป)');
+    return;
+  }
+  PropertiesService.getScriptProperties().setProperty('ACCESS_KEY', key);
+  setup();
+  ui.alert('ตั้งรหัสผ่านเรียบร้อย ✅\nเจ้าหน้าที่ใช้รหัสนี้เข้าเว็บจองคิวได้เลย');
+}
+
 // ---------- จุดรับคำขอ ----------
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }

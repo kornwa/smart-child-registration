@@ -194,3 +194,49 @@ h3 { font-size: 1rem; margin: 18px 0 8px; }
 body.loading .loading-bar { opacity: 1; animation: load 2s ease-out forwards; }
 body.loading { cursor: progress; }
 @keyframes load { from { width: 0; } to { width: 85%; } }
+
+/* หน้าแรก: เลือกผู้ปกครอง / เจ้าหน้าที่ */
+.landing { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 28px; padding: 24px 16px; }
+.landing-head { text-align: center; }
+.landing-head .logo { font-size: 3.5rem; }
+.landing-head h1 { margin: 6px 0 2px; font-size: 1.6rem; }
+.landing-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; width: min(640px, 100%); }
+.choice {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; text-decoration: none; color: var(--text);
+  background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 28px 20px; transition: border-color .15s, transform .15s;
+}
+.choice:hover { border-color: var(--primary); transform: translateY(-2px); }
+.choice-icon { font-size: 3rem; }
+.choice b { font-size: 1.35rem; }
+.choice span:last-child { color: var(--muted); font-size: .92rem; }
+.choice.staff:hover { border-color: var(--green); }
+.hint.center { text-align: center; margin: 0; }
+
+/* หน้าผู้ปกครอง */
+body.parent { background: #f0f5fc; }
+.p-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; background: var(--primary); color: #fff; }
+.p-head .sub { color: #dce9fb; }
+.p-name { font-size: 1.3rem; font-weight: 700; }
+.p-tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+.p-tabs button { font: inherit; border: 0; background: none; padding: 12px 4px; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; }
+.p-tabs button.active { color: var(--primary-dark); border-bottom-color: var(--primary); font-weight: 600; }
+.p-main { max-width: 640px; margin: 0 auto; padding: 16px; }
+.p-main .card { padding: 18px; margin-bottom: 14px; }
+.p-main .form { grid-template-columns: 1fr; }
+.p-main h2 { margin-bottom: 10px; }
+.full-w { width: 100%; }
+.q-card { border-left: 5px solid var(--amber); }
+.q-card.serving { border-left-color: var(--primary); }
+.q-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.q-label { color: var(--muted); font-size: .85rem; }
+.q-no { font-size: 3rem; font-weight: 800; line-height: 1; color: var(--primary-dark); }
+.q-when { font-weight: 600; margin-top: 10px; }
+.q-live { margin-top: 12px; background: var(--amber-soft); color: #7a4d06; border-radius: 10px; padding: 10px 12px; }
+.q-live.go { background: var(--primary); color: #fff; font-weight: 700; animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .75; } }
+.q-cancel { margin-top: 12px; }
+.empty-card { text-align: center; color: var(--muted); }
+.h-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.h-row:last-child { border-bottom: 0; }
+.p-main .info-grid { grid-template-columns: repeat(2, 1fr); }
+.p-main .slots { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }

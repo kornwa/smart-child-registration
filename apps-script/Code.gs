@@ -89,13 +89,18 @@ function doPost(e) {
   try {
     let req;
     try { req = JSON.parse(e.postData.contents); } catch (err) { throw new HttpError(400, 'รูปแบบข้อมูลไม่ถูกต้อง'); }
-    checkKey(req.key);
+    const path = String(req.path || '');
+    const isParent = path.indexOf('/parent/') === 0; // หน้าผู้ปกครองยืนยันตัวตนด้วยข้อมูลเด็ก ไม่ใช้รหัสเจ้าหน้าที่
+    if (!isParent) checkKey(req.key);
     const method = String(req.method || 'GET').toUpperCase();
     const write = method !== 'GET';
     const lock = LockService.getScriptLock();
     if (write) lock.waitLock(20000);
     try {
-      return json({ status: 200, data: dispatch(method, String(req.path || ''), req.query || {}, req.body || {}) });
+      const data = isParent
+        ? parentDispatch(method, path, req.query || {}, req.body || {}, req.auth || {})
+        : dispatch(method, path, req.query || {}, req.body || {});
+      return json({ status: 200, data });
     } finally {
       if (write) lock.releaseLock();
     }
@@ -356,8 +361,10 @@ route('GET', '/api/bookings', (p, query) => {
     .sort(byQueue).slice(0, 500);
 });
 
-route('POST', '/api/bookings', (p, q, body) => {
-  const childId = Number(body.child_id);
+route('POST', '/api/bookings', (p, q, body) => createBooking(Number(body.child_id), body));
+
+// ใช้ร่วมกันทั้งหน้าเจ้าหน้าที่และหน้าผู้ปกครอง
+function createBooking(childId, body) {
   const date = clean(body.date);
   const slot = clean(body.slot);
   const service = clean(body.service);
@@ -366,6 +373,9 @@ route('POST', '/api/bookings', (p, q, body) => {
   if (!isDate(date)) throw new HttpError(400, 'กรุณาเลือกวันที่');
   if (date < todayStr()) throw new HttpError(400, 'ไม่สามารถจองคิวย้อนหลังได้');
   if (!SLOTS.includes(slot)) throw new HttpError(400, 'กรุณาเลือกช่วงเวลา');
+  if (date === todayStr() && slot < Utilities.formatDate(new Date(), TZ, 'HH:mm')) {
+    throw new HttpError(400, 'ช่วงเวลานี้เลยมาแล้ว กรุณาเลือกเวลาอื่น');
+  }
   if (!SERVICES.includes(service)) throw new HttpError(400, 'กรุณาเลือกบริการ');
   if (bt.rows.some((b) => b.child_id === childId && b.date === date && b.status !== 'cancelled')) {
     throw new HttpError(409, 'เด็กคนนี้มีคิวในวันดังกล่าวแล้ว');
@@ -379,7 +389,7 @@ route('POST', '/api/bookings', (p, q, body) => {
     note: clean(body.note), status: 'waiting', created_at: now, updated_at: now };
   writeRow(bt, row);
   return bookingView(row, map);
-});
+}
 
 route('PATCH', '/api/bookings/:id', (p, q, body) => {
   if (!STATUSES.includes(body.status)) throw new HttpError(400, 'สถานะไม่ถูกต้อง');
@@ -409,4 +419,108 @@ route('GET', '/api/display', () => {
     serving: views.filter((b) => b.status === 'serving').sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).map(mask),
     waiting: views.filter((b) => b.status === 'waiting').sort(byQueue).slice(0, 10).map(mask),
   };
+});
+
+// =====================================================================
+// หน้าผู้ปกครอง: ยืนยันตัวตนด้วย เลขบัตรประชาชนเด็กหรือ HN + เบอร์โทรผู้ปกครอง
+// เห็นและจัดการได้เฉพาะข้อมูลของเด็กคนนั้นเท่านั้น
+// =====================================================================
+const PARENT_MAX_FAILS = 5;        // กรอกผิดเกินนี้ ล็อกตัวระบุนั้น 15 นาที
+const PARENT_BOOK_AHEAD_DAYS = 60; // จองล่วงหน้าได้ไม่เกินกี่วัน
+const PARENT_MAX_ACTIVE = 3;       // มีคิวที่ยังไม่ถึงพร้อมกันได้ไม่เกินกี่คิว
+
+const digits = (v) => String(v || '').replace(/[^\d]/g, '');
+
+function parentAuth(auth) {
+  const ident = digits(auth.ident);
+  const phone = digits(auth.phone);
+  if (!ident || !phone) throw new HttpError(401, 'กรุณากรอกเลขบัตรประชาชน/HN และเบอร์โทรให้ครบ');
+  const cache = CacheService.getScriptCache();
+  const ck = 'pfail_' + ident;
+  const fails = Number(cache.get(ck) || 0);
+  if (fails >= PARENT_MAX_FAILS) throw new HttpError(429, 'กรอกข้อมูลผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่');
+  const child = table('children').rows.find((c) =>
+    (c.citizen_id === ident || digits(c.hn) === ident) && digits(c.parent_phone) === phone);
+  if (!child) {
+    cache.put(ck, String(fails + 1), 900);
+    Utilities.sleep(800);
+    throw new HttpError(401, 'ไม่พบข้อมูล กรุณาตรวจสอบเลขบัตรประชาชน/HN และเบอร์โทรที่ลงทะเบียนไว้กับเจ้าหน้าที่');
+  }
+  cache.remove(ck);
+  return child;
+}
+
+// ส่งเฉพาะข้อมูลที่ผู้ปกครองจำเป็นต้องเห็น
+function parentChildView(c) {
+  return {
+    hn: c.hn, first_name: c.first_name, last_name: c.last_name, nickname: c.nickname, gender: c.gender,
+    birth_date: c.birth_date, blood_type: c.blood_type, weight: c.weight, height: c.height,
+    allergies: c.allergies, conditions: c.conditions, parent_name: c.parent_name,
+  };
+}
+
+function parentBookingView(b, todayRows) {
+  const v = { id: b.id, date: b.date, slot: b.slot, queue_no: b.queue_no, service: b.service, note: b.note, status: b.status };
+  if (todayRows && b.date === todayStr() && (b.status === 'waiting' || b.status === 'serving')) {
+    const serving = todayRows.filter((x) => x.status === 'serving').map((x) => x.queue_no);
+    v.now_serving = serving.length ? Math.max.apply(null, serving) : null;
+    v.ahead = todayRows.filter((x) => x.status === 'waiting' && x.queue_no < b.queue_no).length;
+  }
+  return v;
+}
+
+const PARENT_ROUTES = [];
+function parentRoute(method, pattern, handler) {
+  const keys = [];
+  const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([0-9]+)'; }) + '$');
+  PARENT_ROUTES.push({ method, re, keys, handler });
+}
+
+function parentDispatch(method, path, query, body, auth) {
+  for (const r of PARENT_ROUTES) {
+    const m = r.method === method && path.match(r.re);
+    if (!m) continue;
+    const params = {};
+    r.keys.forEach((k, i) => { params[k] = Number(m[i + 1]); });
+    return r.handler(parentAuth(auth), params, query, body);
+  }
+  throw new HttpError(404, 'ไม่พบ API');
+}
+
+parentRoute('GET', '/parent/me', (child) => {
+  const t = todayStr();
+  const all = table('bookings').rows;
+  const todayRows = all.filter((b) => b.date === t);
+  const mine = all.filter((b) => b.child_id === child.id)
+    .sort((a, b) => (a.date + a.slot < b.date + b.slot ? 1 : -1))
+    .map((b) => parentBookingView(b, todayRows));
+  return {
+    child: parentChildView(child),
+    bookings: mine,
+    config: { slots: SLOTS, services: SERVICES, capacity: SLOT_CAPACITY, today: t, book_ahead_days: PARENT_BOOK_AHEAD_DAYS },
+  };
+});
+
+parentRoute('GET', '/parent/slots', (child, p, query) => {
+  if (!isDate(query.date)) throw new HttpError(400, 'วันที่ไม่ถูกต้อง');
+  return slotUsage(table('bookings').rows, query.date);
+});
+
+parentRoute('POST', '/parent/bookings', (child, p, q, body) => {
+  const date = clean(body.date);
+  const limit = new Date(Date.parse(todayStr() + 'T00:00:00Z') + PARENT_BOOK_AHEAD_DAYS * 86400000).toISOString().slice(0, 10);
+  if (isDate(date) && date > limit) throw new HttpError(400, 'จองล่วงหน้าได้ไม่เกิน ' + PARENT_BOOK_AHEAD_DAYS + ' วัน');
+  const active = table('bookings').rows.filter((b) => b.child_id === child.id && b.date >= todayStr() && b.status === 'waiting');
+  if (active.length >= PARENT_MAX_ACTIVE) throw new HttpError(409, 'มีคิวที่ยังไม่ถึงกำหนดครบ ' + PARENT_MAX_ACTIVE + ' คิวแล้ว');
+  const b = createBooking(child.id, { date, slot: body.slot, service: body.service, note: body.note });
+  return parentBookingView(b, null);
+});
+
+parentRoute('POST', '/parent/bookings/:id/cancel', (child, p) => {
+  const bt = table('bookings');
+  const b = bt.rows.find((x) => x.id === p.id && x.child_id === child.id);
+  if (!b) throw new HttpError(404, 'ไม่พบคิว');
+  if (b.status !== 'waiting' || b.date < todayStr()) throw new HttpError(400, 'ยกเลิกได้เฉพาะคิวที่ยังไม่ถูกเรียก');
+  writeRow(bt, Object.assign({}, b, { status: 'cancelled', updated_at: nowStamp() }), b._row);
+  return { ok: true };
 });

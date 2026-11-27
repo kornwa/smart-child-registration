@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ผู้ปกครอง · ระบบจองคิวเด็ก</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="parent">
+  <div class="loading-bar"></div>
+
+  <!-- เข้าใช้งาน -->
+  <section id="login" class="login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="logo">👨‍👩‍👧</div>
+      <h1>สำหรับผู้ปกครอง</h1>
+      <p class="muted">จองคิว · เช็กคิว · ดูประวัติของลูก</p>
+      <label>เลขบัตรประชาชนของลูก หรือเลข HN
+        <input id="login-ident" inputmode="numeric" autocomplete="off" placeholder="เช่น 1234567890123 หรือ 69-00001" required>
+      </label>
+      <label>เบอร์โทรผู้ปกครองที่ลงทะเบียนไว้
+        <input id="login-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxx" required>
+      </label>
+      <button class="btn primary lg" type="submit">เข้าดูข้อมูลลูก</button>
+      <div id="login-msg" class="login-msg"></div>
+      <p class="hint center">ยังไม่เคยลงทะเบียน? กรุณาติดต่อเจ้าหน้าที่ที่คลินิกเพื่อลงทะเบียนครั้งแรก</p>
+      <a class="hint center" href="index.html">← กลับหน้าแรก</a>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <header class="p-head">
+      <div>
+        <div class="p-name" id="p-name"></div>
+        <div class="sub" id="p-sub"></div>
+      </div>
+      <button class="btn sm" id="btn-logout">ออก</button>
+    </header>
+
+    <nav class="p-tabs" id="tabs">
+      <button data-view="queue" class="active">🎫 คิวของฉัน</button>
+      <button data-view="book">📅 จองคิว</button>
+      <button data-view="history">📋 ประวัติ</button>
+    </nav>
+
+    <main class="p-main">
+      <!-- คิวของฉัน -->
+      <section id="view-queue" class="view active">
+        <div id="queue-list"></div>
+        <button class="btn full-w" id="btn-refresh">🔄 อัปเดตสถานะคิว</button>
+      </section>
+
+      <!-- จองคิว -->
+      <section id="view-book" class="view">
+        <form id="book-form" class="card form">
+          <label class="full">วันที่ต้องการ
+            <input type="date" id="bk-date" required>
+          </label>
+          <label class="full">บริการ
+            <select id="bk-service" required></select>
+          </label>
+          <div class="full">
+            <div class="label">เลือกเวลา</div>
+            <div class="slots" id="bk-slots"></div>
+          </div>
+          <label class="full">อาการ / หมายเหตุ (ถ้ามี)
+            <textarea id="bk-note" rows="2" placeholder="เช่น มีไข้ 2 วัน, มาฉีดวัคซีนตามนัด"></textarea>
+          </label>
+          <button type="submit" class="btn primary lg full">ยืนยันการจองคิว</button>
+        </form>
+      </section>
+
+      <!-- ประวัติ -->
+      <section id="view-history" class="view">
+        <div class="card" id="child-info"></div>
+        <div class="card">
+          <h2>ประวัติการรับบริการ</h2>
+          <div id="history-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="config.js"></script>
+  <script src="parent.js"></script>
+</body>
+</html>
